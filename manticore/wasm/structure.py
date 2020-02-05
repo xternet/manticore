@@ -753,11 +753,18 @@ class ModuleInstance(Eventful):
         "function_names",
         "local_names",
         "_instruction_queue",
+        "_call_stack",
         "_block_depths",
         "_state",
     ]
 
-    _published_events = {"execute_instruction", "call_hostfunc", "exec_expression", "raise_trap"}
+    _published_events = {
+        "execute_instruction",
+        "call_hostfunc",
+        "exec_expression",
+        "raise_trap",
+        "call_function",
+    }
 
     #: Stores the type signatures of all the functions
     types: typing.List[FunctionType]
@@ -787,6 +794,8 @@ class ModuleInstance(Eventful):
     # instruction queue, so the meaning of an `end` instruction could be otherwise ambiguous. Loosely put, the sum of
     # all the digits in this list is the number of `end` instructions we need to see before execution is finished.
     _block_depths: typing.List[int]
+    #: Stores the names of functions that have been called
+    _call_stack: typing.List[typing.Tuple[FuncAddr, str]]
     #: Prevents the user from invoking functions before instantiation
     instantiated: bool
     #: Stickies the current state before each instruction
@@ -805,6 +814,7 @@ class ModuleInstance(Eventful):
         self.local_names = {}
         self._instruction_queue = deque()
         self._block_depths = [0]
+        self._call_stack = []
         self._state = None
 
         super().__init__()
@@ -825,6 +835,7 @@ class ModuleInstance(Eventful):
                 "local_names": self.local_names,
                 "_instruction_queue": self._instruction_queue,
                 "_block_depths": self._block_depths,
+                "_call_stack": self._call_stack,
             }
         )
         return state
@@ -842,6 +853,7 @@ class ModuleInstance(Eventful):
         self.local_names = state["local_names"]
         self._instruction_queue = state["_instruction_queue"]
         self._block_depths = state["_block_depths"]
+        self._call_stack = state.get("_call_stack", [])
         self._state = None
         super().__setstate__(state)
 
@@ -1081,13 +1093,14 @@ class ModuleInstance(Eventful):
             assert not isinstance(v, (Label, Activation))
             local_vars.append(v)
 
-        name = self.function_names.get(funcaddr, f"Func{funcaddr}")
-        buffer = " | " * (len(self._block_depths) - 1)
-        logger.debug(buffer + "%s(%s)" % (name, ", ".join(str(i) for i in local_vars)))
+        name = (funcaddr, self.function_names.get(funcaddr, f"Func{funcaddr}"))
+        depth = len(self._block_depths) - 1
+        buffer = ">" * depth + " "
+        logger.debug(buffer + "%s(%s)" % (name[1], ", ".join(str(i) for i in local_vars)))
         if isinstance(f, HostFunc):  # Call native function
-            self._publish("will_call_hostfunc", f, local_vars)
+            self._publish("will_call_hostfunc", name, local_vars, depth)
             res = list(f.hostcode(self._state, *local_vars))
-            self._publish("did_call_hostfunc", f, local_vars, res)
+            self._publish("did_call_hostfunc", name, local_vars, res, depth)
             logger.info("HostFunc returned: %s", res)
             assert len(res) == len(ty.result_types)
             for r, t in zip(res, ty.result_types):
@@ -1098,6 +1111,7 @@ class ModuleInstance(Eventful):
                 stack.push(t.cast(r))  # type: ignore
         else:  # Call WASM function
             assert isinstance(f, FuncInst), "Got a non-WASM function! (Maybe cast to HostFunc?)"
+            self._publish("will_call_function", name, local_vars, depth)
             for cast in f.code.locals:
                 local_vars.append(cast(0))
             frame = Frame(local_vars, f.module)
@@ -1106,6 +1120,7 @@ class ModuleInstance(Eventful):
                     len(ty.result_types), frame, expected_block_depth=len(self._block_depths)
                 )  # When we pop this frame, we expect to be expected_block_depth call frames deep
             )
+            self._call_stack.append(name)
             self._block_depths.append(0)  # We're entering a new function call context
             self.block(store, stack, ty.result_types, f.code.body)
 
@@ -1187,6 +1202,9 @@ class ModuleInstance(Eventful):
             ), f"Stack should have an activation on top, instead has {type(stack.peek())}"
 
             # Discard call frame
+            self._publish(
+                "did_call_function", self._call_stack.pop(), vals, len(self._block_depths) - 1
+            )
             self._block_depths.pop()
             stack.pop()
 
@@ -1314,6 +1332,7 @@ class ModuleInstance(Eventful):
                     # Treat traps as an exit from the current call frame. This is something of a kludge to make
                     # the tests pass. I may need to revisit this in the future because I haven't thoroughly explored
                     # or thought about what the correct behavior is here.
+                    self._call_stack.pop()
                     self._block_depths.pop()
                     logger.info("Trap: %s", str(exc))
                     self._publish("will_raise_trap", exc)
@@ -1577,6 +1596,9 @@ class ModuleInstance(Eventful):
             for i in range(self._block_depths[-1]):
                 self.look_forward(0x0B, 0x05)
             # Pop the current function call from the block depth tracker
+            self._publish(
+                "did_call_function", self._call_stack.pop(), ret, len(self._block_depths) - 1
+            )
             self._block_depths.pop()
 
     def call(self, store: "Store", stack: "AtomicStack", imm: CallImm):
