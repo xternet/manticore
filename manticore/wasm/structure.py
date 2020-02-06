@@ -41,7 +41,7 @@ from .types import (
     ConcretizeStack,
 )
 from .state import State
-from ..core.smtlib import BitVec, issymbolic, Operators, Expression
+from ..core.smtlib import BitVec, issymbolic, Operators, Expression, istainted
 from ..core.state import Concretize
 from ..utils.event import Eventful
 from ..utils import config
@@ -590,6 +590,14 @@ class MemInst(Eventful):
     @property
     def npages(self):
         return self._current_size
+
+    def tainted_addresses(self, taint=None):
+        out = []
+        for page in self._pages:
+            for idx, b in enumerate(self._pages[page]):
+                if istainted(b, taint=taint):
+                    out.append(page * PAGESIZE + idx)
+        return out
 
     def grow(self, n: int) -> bool:
         """
