@@ -276,7 +276,7 @@ class Profiler(Plugin):
             def create_stats(self):
                 pass
 
-        with self.manticore.locked_context("_profiling_stats") as profiling_stats:
+        with self.manticore.locked_context("_profiling_stats", dict) as profiling_stats:
             ps = None
             for item in profiling_stats.values():
                 try:
