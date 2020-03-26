@@ -463,6 +463,7 @@ class Linux(Platform):
         self.envp = envp
         self.argv = argv
         self.stubs = SyscallStubs(parent=self)
+        self.remapped_files = kwargs.get("remapped_files", {})
 
         # dict of [int -> (int, int)] where tuple is (soft, hard) limits
         self._rlimits = {
@@ -638,6 +639,7 @@ class Linux(Platform):
         state["functionabi"] = self._function_abi
         state["syscallabi"] = self._syscall_abi
         state["uname_machine"] = self._uname_machine
+        state["remapped_files"] = self.remapped_files
 
         if hasattr(self, "_arm_tls_memory"):
             state["_arm_tls_memory"] = self._arm_tls_memory
@@ -700,6 +702,7 @@ class Linux(Platform):
         self._function_abi = state["functionabi"]
         self._syscall_abi = state["syscallabi"]
         self._uname_machine = state["uname_machine"]
+        self.remapped_files = state["remapped_files"]
         self.stubs = SyscallStubs(parent=self)
         if "_arm_tls_memory" in state:
             self._arm_tls_memory = state["_arm_tls_memory"]
@@ -1031,10 +1034,11 @@ class Linux(Platform):
             if hint == 0:
                 hint = None
 
+            name = self.remapped_files.get(elf_segment.stream.name, elf_segment.stream.name)
             logger.debug(
-                f"Loading elf offset: {offset:08x} addr:{base + vaddr:08x} {base + vaddr + memsz:08x} {perms}"
+                f"Loading elf -- name: {name} offset: {offset:08x} addr:{base + vaddr:08x} {base + vaddr + memsz:08x} {perms}"
             )
-            base = cpu.memory.mmapFile(hint, memsz, perms, elf_segment.stream.name, offset) - vaddr
+            base = cpu.memory.mmapFile(hint, memsz, perms, name, offset) - vaddr
 
             if self.load_addr == 0:
                 self.load_addr = base + vaddr
@@ -1112,10 +1116,12 @@ class Linux(Platform):
                 if hint == 0:
                     hint = None
 
-                base = cpu.memory.mmapFile(hint, memsz, perms, elf_segment.stream.name, offset)
+                name = self.remapped_files.get(elf_segment.stream.name, elf_segment.stream.name)
+                base = cpu.memory.mmapFile(hint, memsz, perms, name, offset)
                 base -= vaddr
                 logger.debug(
                     f"Loading interpreter offset: {offset:08x} "
+                    f"name: {name} "
                     f"addr:{base + vaddr:08x} "
                     f"{base + vaddr + memsz:08x} "
                     f"{(flags & 1 and 'r' or ' ')}"
@@ -1537,6 +1543,9 @@ class Linux(Platform):
         if os.path.isdir(filename):
             f = Directory(filename, flags)
         else:
+            print("fname:", filename)
+            filename = self.remapped_files.get(filename, filename)
+            print("new fname:", filename)
             f = File(filename, flags)
 
         return f
@@ -2850,6 +2859,7 @@ class SLinux(Linux):
         symbolic_files=None,
         disasm="capstone",
         pure_symbolic=False,
+        **kwargs
     ):
         argv = [] if argv is None else argv
         envp = [] if envp is None else envp
@@ -2859,7 +2869,7 @@ class SLinux(Linux):
         self._pure_symbolic = pure_symbolic
         self.random = 0
         self.symbolic_files = symbolic_files
-        super().__init__(programs, argv=argv, envp=envp, disasm=disasm)
+        super().__init__(programs, argv=argv, envp=envp, disasm=disasm, **kwargs)
 
     def _mk_proc(self, arch):
         if arch in {"i386", "armv7"}:

@@ -383,6 +383,7 @@ def _make_linux(
     concrete_start="",
     pure_symbolic=False,
     stdin_size=None,
+    **kwargs
 ):
     from ..platforms import linux
 
@@ -397,7 +398,7 @@ def _make_linux(
 
     constraints = ConstraintSet()
     platform = linux.SLinux(
-        program, argv=argv, envp=env, symbolic_files=symbolic_files, pure_symbolic=pure_symbolic
+        program, argv=argv, envp=env, symbolic_files=symbolic_files, pure_symbolic=pure_symbolic, **kwargs
     )
     if entry_symbol is not None:
         entry_pc = platform._find_symbol(entry_symbol)
