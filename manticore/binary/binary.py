@@ -1,7 +1,9 @@
-import io
+import io, struct
 from typing import Dict, Type, Union
 
+
 from elftools.elf.elffile import ELFFile
+from elftools.elf.sections import NoteSection
 
 
 class Binary:
@@ -138,7 +140,85 @@ class Elf(Binary):
         return self.interpreter
 
     def threads(self):
-        yield (("Running", {"EIP": self.elf.header.e_entry}))
+        if self.elf.header.e_type in ("ET_DYN", "ET_EXEC"):
+            yield (("Running", {"EIP": self.elf.header.e_entry}))
+        else:
+            threads = []
+            for section in self.elf.iter_sections():
+                if isinstance(section, NoteSection):
+                    for note in section.iter_notes():
+                        if note["n_type"] == "NT_PRSTATUS":
+                            thread = {}
+                            threads.append(thread)
+                            x = io.BytesIO(bytes(note["n_desc"], encoding='utf-8'))
+                            si_signo = struct.unpack("<L", x.read(4))
+                            si_code = struct.unpack("<L", x.read(4))
+                            si_errno = struct.unpack("<L", x.read(4))
+                            pr_cursig = struct.unpack("<L", x.read(4))
+
+                            pr_sigpend = struct.unpack("<Q", x.read(8))
+                            pr_sighold = struct.unpack("<Q", x.read(8))
+
+                            pr_pid = struct.unpack("<L", x.read(4)),
+                            pr_ppid = struct.unpack("<L", x.read(4))
+                            pr_pgrp = struct.unpack("<L", x.read(4))
+                            pr_psid = struct.unpack("<L", x.read(4))
+
+
+                            pr_utime = struct.unpack("<QQ", x.read(16))
+                            pr_stime = struct.unpack("<QQ", x.read(16))
+                            pr_cutime = struct.unpack("<QQ", x.read(16))
+                            pr_cstime = struct.unpack("<QQ", x.read(16))
+
+                            x.read(1) # ?? lets call this padding
+                            R15 = struct.unpack("<Q", x.read(8))[0]
+                            R14 = struct.unpack("<Q", x.read(8))[0]
+                            R13 = struct.unpack("<Q", x.read(8))[0]
+                            R12 = struct.unpack("<Q", x.read(8))[0]
+                            RBP = struct.unpack("<Q", x.read(8))[0]
+                            RBX = struct.unpack("<Q", x.read(8))[0]
+                            R11 = struct.unpack("<Q", x.read(8))[0]
+                            RBX = struct.unpack("<Q", x.read(8))[0]
+                            R10 = struct.unpack("<Q", x.read(8))[0]
+                            R9 = struct.unpack("<Q", x.read(8))[0]
+                            R8 = struct.unpack("<Q", x.read(8))[0]
+                            RAX = struct.unpack("<Q", x.read(8))[0]
+                            RCX = struct.unpack("<Q", x.read(8))[0]
+                            RDX = struct.unpack("<Q", x.read(8))[0]
+                            RSI = struct.unpack("<Q", x.read(8))[0]
+                            RDI = struct.unpack("<Q", x.read(8))[0]
+                            UNK = struct.unpack("<Q", x.read(8))[0]
+                            RIP = struct.unpack("<Q", x.read(8))[0]
+                            CS = struct.unpack("<Q", x.read(8))[0]
+                            EFLAGS = struct.unpack("<Q", x.read(8))[0]
+                            RSP = struct.unpack("<Q", x.read(8))[0]
+                            SS = struct.unpack("<Q", x.read(8))[0]
+                            FS = struct.unpack("<Q", x.read(8))[0]
+                            GS = struct.unpack("<Q", x.read(8))[0]
+                            DS = struct.unpack("<Q", x.read(8))[0]
+                            ES = struct.unpack("<Q", x.read(8))[0]
+                            thread["RAX"] = RAX
+                            thread["RBX"] = RBX
+                            thread["RCX"] = RCX
+                            thread["RDX"] = RDX
+                            thread["RSI"] = RSI
+                            thread["RDI"] = RDI
+                            thread["RSP"] = RSP
+                            thread["RBP"] = RBP
+                            thread["R8"] = R9
+                            thread["R9"] = R9
+                            thread["R10"] = R10
+                            thread["R11"] = R11
+                            thread["R12"] = R12
+                            thread["R13"] = R13
+                            thread["R14"] = R14
+                            thread["R15"] = R15
+                            thread["RIP"] = RIP
+                            thread["EFLAGS"] = EFLAGS
+                        #else:
+                        #    print ("unknown note ", note["n_type"])
+                    for t in threads:
+                        yield t
 
 
 Binary.magics = {b"\x7fCGC": CGCElf, b"\x7fELF": Elf}
