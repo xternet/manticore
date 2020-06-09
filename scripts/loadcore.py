@@ -4,6 +4,7 @@ import sys, struct
 from manticore.core.manticore import ManticoreBase
 from manticore.binary import Elf
 from manticore.native.cpu.cpufactory import CpuFactory
+from manticore.native.cpu.abstractcpu import Syscall
 from manticore.native.memory import (
     SMemory32,
     SMemory64,
@@ -17,8 +18,9 @@ from manticore.core.state import StateBase, Concretize, TerminateState
 from manticore.utils.event import Eventful
 from manticore.utils.log import set_verbosity
 from manticore.native.memory import ConcretizeMemory, MemoryException
-
-set_verbosity(9)
+from manticore.native.cpu.abstractcpu import (
+    ConcretizeRegister, ConcretizeMemory
+)
 
 class CheckpointData(NamedTuple):
     pc: Any
@@ -54,6 +56,7 @@ class NoOS(Eventful):
         self.memory = self.cpu.memory
 
     def execute(self):
+        #print (self.cpu.instruction)
         self.cpu.execute()
 
     def _mk_proc(self, arch: str):
@@ -68,10 +71,6 @@ class NoOS(Eventful):
 
 
 class StateNoOS(StateBase):
-    def __init__(self, coredump):
-        constraints = ConstraintSet()
-        platform = NoOS(constraints, coredump)
-        super().__init__(constraints, platform)
 
     @property
     def cpu(self):
@@ -93,23 +92,18 @@ class StateNoOS(StateBase):
         """
         Perform a single step on the current state
         """
-        from manticore.native.cpu.abstractcpu import (
-            ConcretizeRegister, ConcretizeMemory
-        )  # must be here, otherwise we get circular imports
 
         checkpoint_data = CheckpointData(pc=self.cpu.PC, last_pc=self.cpu._last_pc)
         try:
             result = self._platform.execute()
-
-        # Instead of State importing SymbolicRegisterException and SymbolicMemoryException
-        # from cpu/memory shouldn't we import Concretize from linux, cpu, memory ??
-        # We are forcing State to have abstractcpu
+        except Syscall as exc:
+            self.syscall()
         except ConcretizeRegister as exc:
             # Need to define local variable to use in closure
             e = exc
             expression = self.cpu.read_register(e.reg_name)
 
-            def setstate(state: State, value):
+            def setstate(state, value):
                 state.cpu.write_register(e.reg_name, value)
 
             self._rollback(checkpoint_data)
@@ -119,7 +113,7 @@ class StateNoOS(StateBase):
             e = exc
             expression = self.cpu.read_int(e.address, e.size)
 
-            def setstate(state: State, value):
+            def setstate(state, value):
                 state.cpu.write_int(e.address, value, e.size)
 
             self._rollback(checkpoint_data)
@@ -130,37 +124,32 @@ class StateNoOS(StateBase):
         except MemoryException as e:
             raise TerminateState(str(e), testcase=True)
 
-        # Remove when code gets stable?
-        assert self.platform.constraints is self.constraints
 
-        return result
+    def syscall(self):
+        if self.cpu.RAX == 1:
+            # write
+            print (f"[{self.id}][WRITE] {self.memory.read(self.cpu.RSI, self.cpu.RDX)}")
+            self.cpu.RAX = 0
+        if self.cpu.RAX == 60:
+            print(f"[{self.id}][EXIT]")
+            raise TerminateState("Exit")
 
+set_verbosity(3)
+
+print ("-+* Wellcome to the PoC coredump explorer designed for Artem *+-")
 coredump = sys.argv[1]
+constraints = ConstraintSet()
+platform = NoOS(constraints, coredump)
+initial_state = StateNoOS(constraints, platform)
 
-initial_state = StateNoOS(coredump)
-SRAX = initial_state.constraints.new_bitvec(64, name="RAX")
+
+#SRAX = initial_state.constraints.new_bitvec(64, name="RAX")
+SRAX = initial_state.new_symbolic_value(64, label="RAX")
 initial_state.cpu.RAX = SRAX
 initial_state.platform.cpu
 m = ManticoreBase(initial_state)
 m.run()
-m.finalize()
-lklkj
-core = ELFFile(open(coredump, "rb"))
-assert core.header.e_type == "ET_CORE"
-for elf_segment in core.iter_segments():
-    print(elf_segment.header.p_type)
-##    if elf_segment.header.p_type != "PT_INTERP":
-#        continue
-#    self.interpreter = Elf(elf_segment.data()[:-1])
-#    break
 
-
-import pdb
-
-pdb.set_trace()
-
-
-constraints = ConstraintSet()
-platform = linux.SLinux(
-    program, argv=argv, envp=env, symbolic_files=symbolic_files, pure_symbolic=pure_symbolic
-)
+print (f"Found {m.count_all_states()} states.")
+for state in m.all_states:
+    print (f"State id {state.id} RAX: {hex(state.solve_one(state.input_symbols['RAX']))}")
