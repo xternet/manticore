@@ -973,7 +973,6 @@ class Cpu(Eventful):
             raise InvalidMemoryAccess(curpc, "x")
 
         self._publish("will_decode_instruction", curpc)
-
         insn = self.decode_instruction(curpc)
         self._last_pc = self.PC
 

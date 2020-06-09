@@ -104,7 +104,7 @@ class StateBase(Eventful):
         self._platform = platform
         self._constraints = constraints
         self._platform.constraints = constraints
-        self._input_symbols = list()
+        self._input_symbols = dict()
         self._child = None
         self._context = dict()
         self._terminated_by = None
@@ -148,7 +148,7 @@ class StateBase(Eventful):
         self._platform.constraints = None
         new_state = self.__class__(self._constraints.__enter__(), self._platform)
         self.platform.constraints = new_state.constraints
-        new_state._input_symbols = list(self._input_symbols)
+        new_state._input_symbols = dict(self._input_symbols)
         new_state._context = copy.copy(self._context)
         new_state._id = None
         self.copy_eventful_state(new_state)
@@ -165,7 +165,7 @@ class StateBase(Eventful):
 
     @property
     def input_symbols(self):
-        return self._input_symbols
+        return dict(self._input_symbols)
 
     @property
     def context(self):
@@ -229,7 +229,7 @@ class StateBase(Eventful):
             taint=taint,
             avoid_collisions=avoid_collisions,
         )
-        self._input_symbols.append(expr)
+        self._input_symbols[expr.name]=expr
 
         if options.get("cstring", False):
             for i in range(nbytes - 1):
@@ -257,7 +257,7 @@ class StateBase(Eventful):
         expr = self._constraints.new_bitvec(
             nbits, name=label, taint=taint, avoid_collisions=avoid_collisions
         )
-        self._input_symbols.append(expr)
+        self._input_symbols[expr.name]=expr
         return expr
 
     def concretize(self, symbolic, policy, maxcount=7):
@@ -467,7 +467,7 @@ class StateBase(Eventful):
             symb = self._constraints.new_array(
                 name=label, index_max=size, taint=taint, avoid_collisions=True
             )
-            self._input_symbols.append(symb)
+            self._input_symbols[symb.name]=symb
 
             tmp = []
             for i in range(size):

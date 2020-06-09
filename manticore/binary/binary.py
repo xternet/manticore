@@ -170,7 +170,6 @@ class Elf(Binary):
                             pr_cutime = struct.unpack("<QQ", x.read(16))
                             pr_cstime = struct.unpack("<QQ", x.read(16))
 
-                            x.read(1) # ?? lets call this padding
                             R15 = struct.unpack("<Q", x.read(8))[0]
                             R14 = struct.unpack("<Q", x.read(8))[0]
                             R13 = struct.unpack("<Q", x.read(8))[0]

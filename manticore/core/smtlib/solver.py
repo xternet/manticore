@@ -650,14 +650,12 @@ class Z3Solver(Solver):
                     continue
 
                 temp_cs.add(var == expression)
-
                 self._reset(temp_cs.to_string())
 
                 if not self._is_sat():
                     raise SolverError(
                         "Solver could not find a value for expression under current constraint set"
                     )
-
                 self._send("(get-value (%s))" % var.name)
                 ret = self._recv()
                 if not (ret.startswith("((") and ret.endswith("))")):
