@@ -150,20 +150,19 @@ class Elf(Binary):
                         if note["n_type"] == "NT_PRSTATUS":
                             thread = {}
                             threads.append(thread)
-                            x = io.BytesIO(bytes(note["n_desc"], encoding='utf-8'))
-                            si_signo = struct.unpack("<L", x.read(4))
-                            si_code = struct.unpack("<L", x.read(4))
-                            si_errno = struct.unpack("<L", x.read(4))
-                            pr_cursig = struct.unpack("<L", x.read(4))
+                            x = io.BytesIO(bytes(ord(c) for c in  note["n_desc"]))
+                            si_signo = struct.unpack("<L", x.read(4))[0]
+                            si_code = struct.unpack("<L", x.read(4))[0]
+                            si_errno = struct.unpack("<L", x.read(4))[0]
+                            pr_cursig = struct.unpack("<L", x.read(4))[0]
 
-                            pr_sigpend = struct.unpack("<Q", x.read(8))
-                            pr_sighold = struct.unpack("<Q", x.read(8))
+                            pr_sigpend = struct.unpack("<Q", x.read(8))[0]
+                            pr_sighold = struct.unpack("<Q", x.read(8))[0]
 
-                            pr_pid = struct.unpack("<L", x.read(4)),
-                            pr_ppid = struct.unpack("<L", x.read(4))
-                            pr_pgrp = struct.unpack("<L", x.read(4))
-                            pr_psid = struct.unpack("<L", x.read(4))
-
+                            pr_pid = struct.unpack("<L", x.read(4))[0]
+                            pr_ppid = struct.unpack("<L", x.read(4))[0]
+                            pr_pgrp = struct.unpack("<L", x.read(4))[0]
+                            pr_psid = struct.unpack("<L", x.read(4))[0]
 
                             pr_utime = struct.unpack("<QQ", x.read(16))
                             pr_stime = struct.unpack("<QQ", x.read(16))
@@ -175,7 +174,6 @@ class Elf(Binary):
                             R13 = struct.unpack("<Q", x.read(8))[0]
                             R12 = struct.unpack("<Q", x.read(8))[0]
                             RBP = struct.unpack("<Q", x.read(8))[0]
-                            RBX = struct.unpack("<Q", x.read(8))[0]
                             R11 = struct.unpack("<Q", x.read(8))[0]
                             RBX = struct.unpack("<Q", x.read(8))[0]
                             R10 = struct.unpack("<Q", x.read(8))[0]
@@ -204,7 +202,7 @@ class Elf(Binary):
                             thread["RDI"] = RDI
                             thread["RSP"] = RSP
                             thread["RBP"] = RBP
-                            thread["R8"] = R9
+                            thread["R8"] = R8
                             thread["R9"] = R9
                             thread["R10"] = R10
                             thread["R11"] = R11
