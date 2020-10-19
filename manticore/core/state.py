@@ -1,7 +1,7 @@
 import copy
 import logging
 
-from .smtlib import solver, Bool, issymbolic, BitvecConstant, MutableArray
+from .smtlib import solver, Bool, issymbolic, BitVecConstant, MutableArray
 from ..utils.event import Eventful
 from ..utils.helpers import PickleSerializer
 from ..utils import config
@@ -76,7 +76,7 @@ class SerializeState(Concretize):
     def __init__(self, filename, **kwargs):
         super().__init__(
             f"Saving state to {filename}",
-            BitvecConstant(32, 0),
+            BitVecConstant(32, 0),
             setstate=self._setstate,
             policy="ONE",
             **kwargs,

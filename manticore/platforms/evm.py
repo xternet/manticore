@@ -10,14 +10,14 @@ from typing import List, Set, Tuple, Union, Dict
 from ..platforms.platform import *
 from ..core.smtlib import (
     SelectedSolver,
-    Bitvec,
+    BitVec,
     Array,
     MutableArray,
     Operators,
     Constant,
     ArrayVariable,
     ArrayStore,
-    BitvecConstant,
+    BitVecConstant,
     translate_to_smtlib,
     to_constant,
     get_depth,
@@ -127,7 +127,7 @@ BlockHeader = namedtuple(
 
 def ceil32(x):
     size = 256
-    if isinstance(x, Bitvec):
+    if isinstance(x, BitVec):
         size = x.size
     return Operators.ITEBV(size, Operators.UREM(x, 32) == 0, x, x + 32 - Operators.UREM(x, 32))
 
@@ -392,7 +392,7 @@ class Transaction:
     def set_result(self, result, return_data=None, used_gas=None):
         if getattr(self, "result", None) is not None:
             raise EVMException("Transaction result already set")
-        if not isinstance(used_gas, (int, Bitvec, type(None))):
+        if not isinstance(used_gas, (int, BitVec, type(None))):
             raise EVMException("Invalid used gas in Transaction")
         if result not in {None, "TXERROR", "REVERT", "RETURN", "THROW", "STOP", "SELFDESTRUCT"}:
             raise EVMException("Invalid transaction result")
@@ -1016,7 +1016,7 @@ class EVM(Eventful):
         """
         return self.get_instruction(pc=self.pc)
 
-    def get_instruction(self, pc: Union[Bitvec, int]):
+    def get_instruction(self, pc: Union[BitVec, int]):
         """
         Current instruction pointed by self.pc
         """
@@ -1038,7 +1038,7 @@ class EVM(Eventful):
         if pc in _decoding_cache:
             return _decoding_cache[pc]
 
-        if isinstance(pc, Bitvec):
+        if isinstance(pc, BitVec):
             raise EVMException("Trying to decode from symbolic pc")
         instruction = EVMAsm.disassemble_one(self._getcode(pc), pc=pc, fork=self.evmfork)
         _decoding_cache[pc] = instruction
@@ -1059,7 +1059,7 @@ class EVM(Eventful):
               ITEM2
         sp->  {empty}
         """
-        assert isinstance(value, int) or isinstance(value, Bitvec) and value.size == 256
+        assert isinstance(value, int) or isinstance(value, BitVec) and value.size == 256
         if len(self.stack) >= 1024:
             raise StackOverflow()
 
@@ -1089,7 +1089,7 @@ class EVM(Eventful):
         if isinstance(fee, int):
             if fee > (1 << 512) - 1:
                 raise ValueError
-        elif isinstance(fee, Bitvec):
+        elif isinstance(fee, BitVec):
             if fee.size != 512:
                 raise ValueError("Fees should be 512 bit long")
         # This configuration variable allows the user to control and perhaps relax the gas calculation
@@ -1329,7 +1329,7 @@ class EVM(Eventful):
 
             def setstate(state, value):
                 if taints:
-                    state.platform.current_vm.pc = BitvecConstant(256, value, taint=taints)
+                    state.platform.current_vm.pc = BitVecConstant(256, value, taint=taints)
                 else:
                     state.platform.current_vm.pc = value
 
@@ -1570,7 +1570,7 @@ class EVM(Eventful):
 
         :param base: exponential base, concretized with sampled values
         :param exponent: exponent value, concretized with sampled values
-        :return: Bitvec* EXP result
+        :return: BitVec* EXP result
         """
         if exponent == 0:
             return 1
@@ -2892,9 +2892,9 @@ class EVMWorld(Platform):
 
         :param storage_address: an account address
         :param offset: the storage slot to use.
-        :type offset: int or Bitvec
+        :type offset: int or BitVec
         :return: the value
-        :rtype: int or Bitvec
+        :rtype: int or BitVec
         """
         return self._world_state[storage_address]["storage"].select(offset)
 
@@ -2904,9 +2904,9 @@ class EVMWorld(Platform):
 
         :param storage_address: an account address
         :param offset: the storage slot to use.
-        :type offset: int or Bitvec
+        :type offset: int or BitVec
         :param value: the value to write
-        :type value: int or Bitvec
+        :type value: int or BitVec
         """
         self._world_state[storage_address]["storage"][offset] = value
 
@@ -2969,7 +2969,7 @@ class EVMWorld(Platform):
         return new_nonce
 
     def set_balance(self, address, value):
-        if isinstance(value, Bitvec):
+        if isinstance(value, BitVec):
             value = Operators.ZEXTEND(value, 512)
         self._world_state[int(address)]["balance"] = simplify(value)
 
@@ -2988,17 +2988,17 @@ class EVMWorld(Platform):
         )
 
     def add_to_balance(self, address, value):
-        if isinstance(value, Bitvec):
+        if isinstance(value, BitVec):
             value = Operators.ZEXTEND(value, 512)
         self._world_state[address]["balance"] += value
 
     def sub_from_balance(self, address, value):
-        if isinstance(value, Bitvec):
+        if isinstance(value, BitVec):
             value = Operators.ZEXTEND(value, 512)
         self._world_state[address]["balance"] -= value
 
     def send_funds(self, sender, recipient, value):
-        if isinstance(value, Bitvec):
+        if isinstance(value, BitVec):
             value = Operators.ZEXTEND(value, 512)
         self._world_state[sender]["balance"] -= value
         self._world_state[recipient]["balance"] += value

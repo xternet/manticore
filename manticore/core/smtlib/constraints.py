@@ -6,12 +6,12 @@ from ...utils.helpers import PickleSerializer
 from ...exceptions import SmtlibError
 from .expression import (
     Expression,
-    BitvecVariable,
+    BitVecVariable,
     BoolVariable,
     ArrayVariable,
     Array,
     Bool,
-    Bitvec,
+    BitVec,
     BoolConstant,
     MutableArray,
     BoolEqual,
@@ -321,7 +321,7 @@ class ConstraintSet:
                 # Create and declare a new variable of given type
                 if isinstance(foreign_var, Bool):
                     new_var = self.new_bool(name=migrated_name)
-                elif isinstance(foreign_var, Bitvec):
+                elif isinstance(foreign_var, BitVec):
                     new_var = self.new_bitvec(foreign_var.size, name=migrated_name)
                 elif isinstance(foreign_var, Array):
                     # Note that we are discarding the ArrayProxy encapsulation
@@ -367,10 +367,10 @@ class ConstraintSet:
         :param name: try to assign name to internal variable representation,
                      if not unique, a numeric nonce will be appended
         :param avoid_collisions: potentially avoid_collisions the variable to avoid name collisions if True
-        :return: a fresh BitvecVariable
+        :return: a fresh BitVecVariable
         """
         if size <= 0:
-            raise ValueError(f"Bitvec size ({size}) can't be equal to or less than 0")
+            raise ValueError(f"BitVec size ({size}) can't be equal to or less than 0")
         if name is None:
             name = "BV"
             avoid_collisions = True
@@ -378,7 +378,7 @@ class ConstraintSet:
             name = self._make_unique_name(name)
         if not avoid_collisions and name in self._declarations:
             raise ValueError(f"Name {name} already used")
-        var = BitvecVariable(size=size, name=name, taint=taint)
+        var = BitVecVariable(size=size, name=name, taint=taint)
         return self._declare(var)
 
     def new_array(
