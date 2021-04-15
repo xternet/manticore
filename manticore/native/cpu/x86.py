@@ -655,8 +655,8 @@ class AMD64RegFile(RegisterFile):
             return Operators.ITEBV(
                 register_size,
                 value,
-                BitVecConstant(register_size, 1 << offset),
-                BitVecConstant(register_size, 0),
+                BitVecConstant(size=register_size, value=1 << offset),
+                BitVecConstant(size=register_size, value=0),
             )
 
         flags = []
@@ -837,7 +837,7 @@ class X86Cpu(Cpu):
 
     # Segments
     def set_descriptor(self, selector, base, limit, perms):
-        assert selector > 0 and selector < 0xFFFF
+        assert selector >= 0 and selector < 0xFFFF
         assert base >= 0 and base < (1 << self.address_bit_size)
         assert limit >= 0 and limit < 0xFFFF or limit & 0xFFF == 0
         # perms ? not used yet Also is not really perms but rather a bunch of attributes
@@ -952,8 +952,11 @@ class X86Cpu(Cpu):
         """
         # FIXME Choose conservative values and consider returning some default when eax not here
         conf = {
-            0x0: (0x0000000D, 0x756E6547, 0x6C65746E, 0x49656E69),
-            0x1: (0x000306C3, 0x05100800, 0x7FFAFBFF, 0xBFEBFBFF),
+            # Taken from comparison against Unicorn@v1.0.2
+            0x0: (0x00000004, 0x68747541, 0x444D4163, 0x69746E65),
+            # Taken from comparison against Unicorn@v1.0.2
+            0x1: (0x663, 0x800, 0x2182200, 0x7088100),
+            # TODO: Check against Unicorn
             0x2: (0x76035A01, 0x00F0B5FF, 0x00000000, 0x00C10000),
             0x4: {
                 0x0: (0x1C004121, 0x01C0003F, 0x0000003F, 0x00000000),
@@ -1071,6 +1074,7 @@ class X86Cpu(Cpu):
         cpu.PF = cpu._calculate_parity_flag(temp)
         cpu.CF = False
         cpu.OF = False
+        cpu.AF = False  # Undefined, but ends up being `0` in emulator
 
     @instruction
     def NOT(cpu, dest):
@@ -2516,7 +2520,12 @@ class X86Cpu(Cpu):
 
         def make_flag(val, offset):
             if is_expression:
-                return Operators.ITEBV(8, val, BitVecConstant(8, 1 << offset), BitVecConstant(8, 0))
+                return Operators.ITEBV(
+                    size=8,
+                    cond=val,
+                    true_value=BitVecConstant(size=8, value=1 << offset),
+                    false_value=BitVecConstant(size=8, value=0),
+                )
             else:
                 return val << offset
 
@@ -5653,6 +5662,14 @@ class X86Cpu(Cpu):
         """
         cpu.write_int(dest.address(), cpu.FPCW, 16)
 
+    def sem_SYSCALL(cpu):
+        """
+        Syscall semantics without @instruction for use in emulator
+        """
+        cpu.RCX = cpu.RIP
+        cpu.R11 = cpu.RFLAGS
+        raise Syscall()
+
     @instruction
     def SYSCALL(cpu):
         """
@@ -5667,9 +5684,7 @@ class X86Cpu(Cpu):
 
         :param cpu: current CPU.
         """
-        cpu.RCX = cpu.RIP
-        cpu.R11 = cpu.RFLAGS
-        raise Syscall()
+        cpu.sem_SYSCALL()
 
     @instruction
     def MOVLPD(cpu, dest, src):

@@ -309,7 +309,7 @@ class SymCPUTest(unittest.TestCase):
         return reduce(operator.or_, (self._flags[f] for f in flags))
 
     def _construct_sym_flag_bitfield(self, flags):
-        return reduce(operator.or_, (BitVecConstant(32, self._flags[f]) for f in flags))
+        return reduce(operator.or_, (BitVecConstant(size=32, value=self._flags[f]) for f in flags))
 
     def test_set_eflags(self) -> None:
         cpu = I386Cpu(Memory32())
@@ -371,8 +371,8 @@ class SymCPUTest(unittest.TestCase):
         cpu.CF = 1
         cpu.AF = 1
 
-        a = BitVecConstant(32, 1) != 0
-        b = BitVecConstant(32, 0) != 0
+        a = BitVecConstant(size=32, value=1) != 0
+        b = BitVecConstant(size=32, value=0) != 0
         cpu.ZF = a
         cpu.SF = b
 
@@ -1290,7 +1290,7 @@ class SymCPUTest(unittest.TestCase):
         code = mem.mmap(0x1000, 0x1000, "rwx")
         stack = mem.mmap(0xF000, 0x1000, "rw")
 
-        mem[code] = BitVecConstant(8, 0x90)
+        mem[code] = BitVecConstant(size=8, value=0x90)
         cpu.EIP = code
         cpu.EAX = 116
         cpu.EBP = stack + 0x700
@@ -1312,7 +1312,7 @@ class SymCPUTest(unittest.TestCase):
         stack = mem.mmap(0xF000, 0x1000, "rw")
 
         # 37 AAA
-        mem[code] = BitVecConstant(8, 0x37)
+        mem[code] = BitVecConstant(size=8, value=0x37)
         cpu.EIP = code
         AL = 10
         AH = 0x41
@@ -1337,7 +1337,7 @@ class SymCPUTest(unittest.TestCase):
         stack = mem.mmap(0xF000, 0x1000, "rw")
 
         # 37 AAA
-        mem[code] = BitVecConstant(8, 0x37)
+        mem[code] = BitVecConstant(size=8, value=0x37)
         cpu.EIP = code
         AL = 18
         AH = 0x41
@@ -1363,7 +1363,7 @@ class SymCPUTest(unittest.TestCase):
         stack = mem.mmap(0xF000, 0x1000, "rw")
 
         # 3F AAS
-        mem[code] = BitVecConstant(8, 0x3F)
+        mem[code] = BitVecConstant(size=8, value=0x3F)
         cpu.EIP = code
         AL = 10
         AH = 0x41
@@ -1388,7 +1388,7 @@ class SymCPUTest(unittest.TestCase):
         stack = mem.mmap(0xF000, 0x1000, "rw")
 
         # 3F AAS
-        mem[code] = BitVecConstant(8, 0x3F)
+        mem[code] = BitVecConstant(size=8, value=0x3F)
         cpu.EIP = code
         AL = 18
         AH = 0x41
@@ -1413,7 +1413,7 @@ class SymCPUTest(unittest.TestCase):
         stack = mem.mmap(0xF000, 0x1000, "rw")
 
         # 27 DAA
-        mem[code] = BitVecConstant(8, 0x27)
+        mem[code] = BitVecConstant(size=8, value=0x27)
         cpu.EIP = code
 
         cpu.AL = 0xAE
@@ -1445,7 +1445,7 @@ class SymCPUTest(unittest.TestCase):
         stack = mem.mmap(0xF000, 0x1000, "rw")
 
         # 2F DAS
-        mem[code] = BitVecConstant(8, 0x2F)
+        mem[code] = BitVecConstant(size=8, value=0x2F)
         cpu.EIP = code
 
         cpu.AL = 0xAE
