@@ -3674,6 +3674,28 @@ class Linux(Platform):
 
         return 0
 
+    def sys_fchown(self, fd, user, group) -> int:
+        """
+        Modify file ownership
+        :return 0 on success
+        """
+        try:
+            fdlike = self._get_fdlike(fd)
+        except FdError as e:
+            logger.info(f"sys_fchown: invalid fd ({fd}), returning -{errorcode(e.err)}")
+            return -e.err
+
+        if not isinstance(fdlike, File) and not isinstance(fdlike, Directory):
+            logger.info("sys_fchown: called on fd that is neither a file nor a directory")
+            return -e.err
+
+        try:
+            os.fchown(fdlike.fileno(), user, group)
+        except OSError as e:
+            return -e.errno
+
+        return 0
+
     def sys_lchown(self, filename, user, group) -> int:
         """
         Modify file ownership without following symlinks
