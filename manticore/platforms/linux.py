@@ -428,6 +428,9 @@ class File(FdLike):
     def pread(self, count, offset):
         return os.pread(self.fileno(), count, offset)
 
+    def pwrite(self, buf, offset):
+        return os.pwrite(self.fileno(), buf, offset)
+
     def write(self, buf):
         return self.file.write(buf)
 
@@ -1967,6 +1970,58 @@ class Linux(Platform):
                 )  # latin-1 encoding will happily decode any byte (0x00-0xff)
                 logger.debug(f"sys_write({fd}, 0x{buf:08x}, {count}) -> <{repr(line_str):48s}>")
             self.syscall_trace.append(("_write", fd, data))
+            self.signal_transmit(fd)
+
+        return len(data)
+
+    def sys_pwrite64(self, fd: int, buf, count, offset: int) -> int:
+        """pwrite - send bytes through a file descriptor
+        pwrite() writes up to count bytes from the buffer starting
+        at buf to the file descriptor fd at offset offset. The file
+        offset is not changed.
+
+        :param fd:            a valid file descriptor
+        :param buf:           a memory buffer
+        :param count:         number of bytes to send
+        :param offset:        offset where to write in the file
+        :return:  number of bytes written on success
+                  EBADF      fd is not a valid file descriptor or is not open.
+                  EFAULT     buf is outside your accessible address space.
+                  ESPIPE     fd is associated with a pipe, socket, or FIFO.
+        """
+        data: bytes = bytes()
+        cpu = self.current
+        if count != 0:
+            try:
+                write_fd = self._get_fdlike(fd)
+                if not isinstance(write_fd, File):
+                    logger.error(f"Unsupported pwrite on {type(write_fd)} at fd {fd}")
+                    return -errno.ESPIPE
+            except FdError as e:
+                logger.error(
+                    f"sys_pwrite64: Not valid file descriptor ({fd}). Returning -{errorcode(e.err)}"
+                )
+                return -e.err
+
+            if buf not in cpu.memory or buf + count not in cpu.memory:
+                logger.debug("sys_pwrite64: buf points to invalid address. Returning -errno.EFAULT")
+                return -errno.EFAULT
+
+            if fd > 2 and write_fd.is_full():
+                cpu.PC -= cpu.instruction.size
+                self.wait([], [fd], None)
+                raise RestartSyscall()
+
+            data_sym: MixedSymbolicBuffer = cpu.read_bytes(buf, count)
+            data = self._transform_write_data(data_sym)
+            write_fd.pwrite(data, offset)
+
+            for line in data.split(b"\n"):
+                line_str = line.decode(
+                    "latin-1"
+                )  # latin-1 encoding will happily decode any byte (0x00-0xff)
+                logger.debug(f"sys_pwrite64({fd}, 0x{buf:08x}, {count}) -> <{repr(line_str):48s}>")
+            self.syscall_trace.append(("_pwrite64", fd, data))
             self.signal_transmit(fd)
 
         return len(data)
