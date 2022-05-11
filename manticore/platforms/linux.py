@@ -3447,6 +3447,12 @@ class Linux(Platform):
         """
         return self.sys_stat64(fd, buf)
 
+    def sys_newlstat(self, fd, buf):
+        """
+        Wrapper for lstat64()
+        """
+        return self.sys_lstat64(fd, buf)
+
     def sys_stat64(self, path, buf):
         """
         Determines information about a file based on its filename (for Linux 64 bits).
@@ -3457,11 +3463,28 @@ class Linux(Platform):
         """
         return self._stat(path, buf, True)
 
+    def sys_lstat64(self, path, buf):
+        """
+        Similar to stat64 but doesn't follow symlinks
+        :rtype: int
+        :param path: the pathname of the file that is being inquired.
+        :param buf: a buffer where data about the file will be stored.
+        :return: C{0} on success.
+        """
+        return self._stat(path, buf, True, follow_symlink=False)
+
     def sys_stat32(self, path, buf):
         return self._stat(path, buf, False)
 
-    def _stat(self, path, buf, is64bit):
-        fd = self.sys_open(path, 0, "r")
+    def sys_lstat32(self, path, buf):
+        return self._stat(path, buf, False, follow_symlink=False)
+
+    def _stat(self, path, buf, is64bit, follow_symlink=True):
+        flags = 0
+        if not follow_symlink:
+            flags |= os.O_NOFOLLOW
+
+        fd = self.sys_open(path, flags, "r")
         if is64bit:
             ret = self.sys_fstat64(fd, buf)
         else:
@@ -4003,7 +4026,7 @@ class SLinux(Linux):
         # TODO: Make a concrete connection actually an option
         # return super().sys_accept(sockfd, addr, addrlen)
 
-    def sys_open(self, buf: int, flags: int, mode: Optional[int]) -> int:
+    def sys_open(self, buf: int, flags: int, mode: Optional[int] = 0) -> int:
         """
         A version of open(2) that includes a special case for a symbolic path.
         When given a symbolic path, it will create a temporary file with
