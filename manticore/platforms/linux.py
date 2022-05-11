@@ -3674,6 +3674,19 @@ class Linux(Platform):
 
         return 0
 
+    def sys_lchown(self, filename, user, group) -> int:
+        """
+        Modify file ownership without following symlinks
+        :return 0 on success
+        """
+        filename = self.current.read_string(filename)
+        try:
+            os.lchown(filename, user, group)
+        except OSError as e:
+            return -e.errno
+
+        return 0
+
     def _arch_specific_init(self):
         assert self.arch in {"i386", "amd64", "armv7", "aarch64"}
 
