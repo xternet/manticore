@@ -204,6 +204,10 @@ class FdLike(ABC):
         ...
 
     @abstractmethod
+    def fcntl(self, request, argp) -> int:
+        ...
+
+    @abstractmethod
     def tell(self) -> int:
         ...
 
@@ -346,6 +350,9 @@ class EventPoll(FdLike):
     def ioctl(self, request, argp) -> int:
         raise NotImplemented
 
+    def fcntl(self, request, arg) -> int:
+        raise NotImplemented
+
     def tell(self) -> int:
         raise NotImplemented
 
@@ -415,6 +422,13 @@ class File(FdLike):
     def ioctl(self, request, argp):
         try:
             return fcntl.fcntl(self, request, argp)
+        except OSError as e:
+            logger.error(f"Invalid Fcntl request: {request}")
+            return -e.errno
+
+    def fcntl(self, request, arg):
+        try:
+            return fcntl.fcntl(self, request, arg)
         except OSError as e:
             logger.error(f"Invalid Fcntl request: {request}")
             return -e.errno
@@ -544,6 +558,9 @@ class Directory(FdLike):
 
     def ioctl(self, request, argp):
         raise FdError("Invalid ioctl() operation on Directory", errno.ENOTTY)
+
+    def fcntl(self, request, arg) -> int:
+        raise FdError("Invalid fcntl() operation on Directory", errno.ENOTTY)
 
     def poll(self) -> int:
         # TODO(ekilmer): Look into how we could implement this
@@ -707,6 +724,9 @@ class SocketDesc(FdLike):
     def ioctl(self, request, argp):
         raise FdError("Invalid ioctl() operation on SocketDesc", errno.ENOTTY)
 
+    def fcntl(self, request, argp):
+        raise FdError("Invalid fcntl() operation on SocketDesc", errno.ENOTTY)
+
     def tell(self) -> int:
         raise FdError("Invalid tell() operation on SocketDesc", errno.EBADF)
 
@@ -828,6 +848,9 @@ class Socket(FdLike):
 
     def ioctl(self, request, argp):
         raise FdError("Invalid ioctl() operation on Socket", errno.ENOTTY)
+
+    def fcntl(self, request, arg):
+        raise FdError("Invalid fcntl() operation on SocketDesc", errno.ENOTTY)
 
     def poll(self) -> int:
         if self.is_empty():
@@ -2300,6 +2323,26 @@ class Linux(Platform):
         if fd > 2:
             try:
                 return self.fd_table.get_fdlike(fd).ioctl(request, argp)
+            except FdError as e:
+                return -e.err
+        else:
+            return -errno.EINVAL
+
+    def sys_fcntl(self, fd, cmd, arg=0) -> int:
+        # Sanity check on supported commands here. Depending on the command,
+        # 'arg' will be an integer or a pointer to some data, so it needs
+        # special processing depending on 'cmd'.
+        if cmd in [fcntl.F_GETFL]:
+            arg = 0
+        else:
+            raise NotImplementedError(
+                f"Manticore doesn't support command {cmd:x} for syscall fcntl"
+            )
+
+        # Perform the fcntl call
+        if fd > 2:
+            try:
+                return self.fd_table.get_fdlike(fd).fcntl(request, arg)
             except FdError as e:
                 return -e.err
         else:
