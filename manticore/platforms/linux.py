@@ -2472,6 +2472,18 @@ class Linux(Platform):
         """Wrapper for sys_sigaction"""
         return self.sys_sigaction(signum, act, oldact)
 
+    def sys_set_robust_list(self, head, len) -> int:
+        """long set_robust_list(struct robust_list_head *head, size_t len);
+
+        The set_robust_list() system call requests the kernel to record the
+        head of the list of robust futexes owned by the calling thread.
+        The head argument is the list head to record. The len argument should
+        be sizeof(*head)
+        """
+        # We don't currently support multithreading in Manticore so we just
+        # ignore this syscall and return a null value for success
+        return 0
+
     def sys_sigaction(self, signum, act, oldact):
         logger.warning(f"SIGACTION, Ignoring changing signal handler for signal {signum}")
         return 0
@@ -3137,7 +3149,6 @@ class Linux(Platform):
 
         index: int = self._syscall_abi.syscall_number()
         name: Optional[str] = None
-
         try:
             table = getattr(linux_syscalls, self.current.machine)
             name = table.get(index, None)
