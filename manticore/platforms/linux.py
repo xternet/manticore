@@ -2340,13 +2340,10 @@ class Linux(Platform):
             )
 
         # Perform the fcntl call
-        if fd > 2:
-            try:
-                return self.fd_table.get_fdlike(fd).fcntl(request, arg)
-            except FdError as e:
-                return -e.err
-        else:
-            return -errno.EINVAL
+        try:
+            return self.fd_table.get_fdlike(fd).fcntl(cmd, arg)
+        except FdError as e:
+            return -e.err
 
     def _sys_open_get_file(self, filename: str, flags: int) -> FdLike:
         # TODO(yan): Remove this special case
